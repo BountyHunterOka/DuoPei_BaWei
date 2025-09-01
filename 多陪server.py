@@ -1,5 +1,3 @@
-from typing import Union
-
 from fastapi import FastAPI
 import threading
 import time
@@ -9,36 +7,64 @@ import requests
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 from datetime import datetime
-import os
-import platform
+from fastapi.middleware.cors import CORSMiddleware
+# import os
+# import platform
 
 app = FastAPI()
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/start")
 def start_book():
-    start_grabbing()
+    thread = threading.Thread(target=start_grabbing, daemon=True)
+    thread.start()
+    return "开始抢单"
+
 
 @app.get("/stop")
 def stop_book():
     stop_grabbing()
+    return "结束抢单"
+
+@app.get("/voice_start")
+def start_voice():
+    start_talking()
+    return "开始连麦单"
+
+@app.get("/voice_stop")
+def stop_voice():
+    stop_talking()
+    return "结束连麦单"
+
+@app.get("/check_running")
+def check():
+    if running:
+     return "运行中"
+    else:
+     return "已暂停"
 
 # @app.get("/items/{item_id}")
 # def read_item(item_id: int, q: Union[str, None] = None):
 #     return {"item_id": item_id, "q": q}
 
-def play_sound():
-    try:
-        system = platform.system()
-        if system == "Darwin":
-            os.system('afplay /System/Library/Sounds/Glass.aiff')
-        elif system == "Windows":
-            import winsound
-            winsound.MessageBeep()
-        else:
-            print("提示音在当前系统不支持")
-    except Exception as e:
-        print(f"[播放提示音失败] {e}")
+# def play_sound():
+#     try:
+#         system = platform.system()
+#         if system == "Darwin":
+#             os.system('afplay /System/Library/Sounds/Glass.aiff')
+#         elif system == "Windows":
+#             import winsound
+#             winsound.MessageBeep()
+#         else:
+#             print("提示音在当前系统不支持")
+#     except Exception as e:
+#         print(f"[播放提示音失败] {e}")
 
 # ========== 常量 ==========
 KEY_HEX = "81b120ef00216c33b266763abb02e6d1"
@@ -62,6 +88,7 @@ session = requests.Session()
 session.headers.update(HEADERS)
 
 running = False
+voice_talking = False
 
 # ========== 日志输出 ==========
 def log(text):
@@ -105,7 +132,7 @@ def extract_order_id(decrypted_json_str):
                 log("[跳过订单] 有备注")
                 continue
             names = order.get("item", {}).get("names", [])
-            if any(keyword in name for keyword in ['连麦','听歌'] for name in names):
+            if voice_talking and any(keyword in name for keyword in ['连麦','听歌'] for name in names):
                 log("[跳过订单] 不要连麦单")
                 continue
             return order.get("id")
@@ -126,6 +153,7 @@ def confirm_order(order_id):
                 break
             log(f"[抢单结果] {confirm_rep}")
             if '未满足' in confirm_rep:
+                time.sleep(2.5)
                 log("等待中...继续尝试")
                 continue
             break
@@ -144,7 +172,7 @@ def run_loop(interval):
             if order_id:
                 log(f"[发现订单] ID = {order_id}")
                 threading.Thread(target=confirm_order, args=(order_id,), daemon=True).start()
-                play_sound()
+                # play_sound()
             else:
                 log("[无新订单]")
         else:
@@ -157,7 +185,7 @@ def start_grabbing():
     if running:
         return
     try:
-        interval = 1
+        interval = 2.5
         log(f"刷新时间间隔: {interval} 秒")
     except:
         log("请输入有效的数字作为间隔（秒）")
@@ -170,4 +198,16 @@ def stop_grabbing():
     global running
     running = False
     log("[已停止抢单]")
+
+
+def start_talking():
+    global voice_talking
+    voice_talking = True
+    log("[开始连麦单]")
+
+
+def stop_talking():
+    global voice_talking
+    voice_talking = False
+    log("[结束连麦单]")
 
