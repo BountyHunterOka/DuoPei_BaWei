@@ -1,8 +1,6 @@
 from typing import Union
 
 from fastapi import FastAPI
-import tkinter as tk
-from tkinter import scrolledtext
 import threading
 import time
 import json
