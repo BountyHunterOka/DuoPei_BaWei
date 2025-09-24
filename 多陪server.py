@@ -153,7 +153,7 @@ def confirm_order(order_id):
                 break
             log(f"[抢单结果] {confirm_rep}")
             if '未满足' in confirm_rep:
-                time.sleep(2.5)
+                time.sleep(1.25)
                 log("等待中...继续尝试")
                 continue
             break
